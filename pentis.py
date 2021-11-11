@@ -35,7 +35,9 @@ Application class manages threads.
 # ===========================
 
 class Coordinates:
-    pass
+    def __init__(self):
+        pass
+
     def get_neighbours(self):
         pass
 
@@ -187,7 +189,14 @@ class App:
 
 
 def handle_event(game, event):
-    """ to be moved to App class as method """
+    """
+    to be moved to App class as method
+
+    make event in game
+    update game
+    take a display data
+    update display
+    """
     if event.type == "key_stroke":
         key = event.key
         if key == Key.DOWN:
