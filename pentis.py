@@ -21,27 +21,30 @@ When the whole row is filled with Blocks, it is removed.
 Exactly one Piece is present on the playfield.
 When a Piece is turned into Blocks, the next Piece is generated on top of Playfield.
 
+Game is a class containing a state of game and its behaviour.
+Window is a class responsible for GUI.
+Game and Window are independent and encapsulated classes.
+Application is a controller class containing Game and Window.
+Application class is responsible for communication between Window and Game.
+Application class manages threads.
+
 """
 
+# ===========================
+# ====== GAME PHYSICS =======
+# ===========================
 
-class Key(Enum):
-    DOWN = 0
-    UP = 1
-    LEFT = 2
-    RIGHT = 3
-    ESCAPE = 4
-
-
-class PieceType(Enum):
-    # to be deprecated probably
-    EMPTY = 0
-
-
-class Piece:
+class Coordinates:
     pass
+    def get_neighbours(self):
+        pass
 
 
 class Square:
+    pass
+
+
+class Piece:
     pass
 
 
@@ -49,63 +52,32 @@ class Block:
     pass
 
 
-class Coordinates:
-    pass
-    # get neighbours()
-
-
 class Playfield:
     pass
-
-
-class Window:
-    def __init__(self):
-        self.window = tkinter.Tk()
-        self.window.title("Pentis by MŚ")
-
-    def draw_playfield(self):
-        pass
-
-    def draw_blocks(self, blocks):
-        pass
-
-    def draw_piece(self, type_, x, y, rotation):
-        pass
-
-    def clear(self):
-        pass
-
-    def show(self):
-        pass
-
-    def close(self):
-        print("close windows")
-        self.window.destroy()
-        print("window destroyed")
 
 
 class Game:
     def __init__(self):
         self.alive = True
         self.time = None
+        self.piece = None
         self.position_x = None
         self.position_y = None
         self.rotation = None
         self.time_step = 1.0
         self.blocks = []
-        self.piece_type = None
 
         self.reset()
 
     def reset(self):
         self.alive = True
         self.time = 0.0
+        self.piece = None
         self.position_x = 5
         self.position_y = 20
         self.rotation = 0
         self.time_step = 1.0
         self.blocks = []
-        self.piece_type = PieceType.EMPTY
 
     def is_alive(self):
         return bool(self.alive)
@@ -133,17 +105,74 @@ class Game:
         window.clear()
         window.draw_playfield()
         window.draw_blocks(self.blocks)
-        window.draw_piece(self.piece_type, self.position_x, self.position_y, self.rotation)
+        window.draw_piece(self.piece)
         window.show()
 
 
+def game_physics(context):
+    """ to be moved to Game class as `loop` method, remove context """
+    while context.game.is_alive():
+        sleep(context.game.time_step)
+        context.game.time += context.game.time_step
+        context.game.step()
+        context.game.draw_view(context.window)
+    print("side thread game over, trying to close window..")
+    context.window.close()
+    print("side thread finished")
+
+
+# ===========================
+# ====== APPLICATION ========
+# ===========================
+
+
+class Key(Enum):
+    DOWN = 0
+    UP = 1
+    LEFT = 2
+    RIGHT = 3
+    ESCAPE = 4
+
+
+class Window:
+    """
+    Wrapper class for tkinter.Tk
+    """
+    def __init__(self):
+        self.window = tkinter.Tk()
+        self.window.title("Pentis by MŚ")
+
+    def draw_playfield(self):
+        pass
+
+    def draw_blocks(self, blocks):
+        pass
+
+    def draw_piece(self, piece):
+        pass
+
+    def clear(self):
+        pass
+
+    def show(self):
+        pass
+
+    def close(self):
+        print("close window")
+        self.window.quit()
+        self.window.destroy()
+        print("window destroyed")
+
+
 class Context:
+    """ to be removed """
     def __init__(self, game, window):
         self.game = game
         self.window = window
 
 
 class App:
+    """ to be renamed to Application """
     def __init__(self, context):
         self.context = context
 
@@ -157,16 +186,8 @@ class App:
         self.context.window.close()
 
 
-def game_physics(context):
-    while context.game.is_alive():
-        sleep(context.game.time_step)
-        context.game.time += context.game.time_step
-        context.game.step()
-        context.game.draw_view(context.window)
-    context.window.close()
-
-
 def handle_event(game, event):
+    """ to be moved to App class as method """
     if event.type == "key_stroke":
         key = event.key
         if key == Key.DOWN:
@@ -187,11 +208,13 @@ def handle_event(game, event):
 
 
 def event_listener(context, event):
+    """ to be changed """
     handle_event(context.game, event)
     context.game.draw_view(context.window)
 
 
 def main():
+    """ logic to be moved to Application class """
     # create game engine
     game = Game()
     window = Window()
@@ -205,18 +228,44 @@ def main():
     # start event loop
     print("initializing game physics thread")
     thread.start()
-    print("game started")
+    print("game started, starting main loop")
     app.start_event_loop()
-    print("app main loop started")
-    # close app
-    print("waiting for thread...")
-    thread.stop()
-    thread.join()
-    print("thread joined.")
-    app.close()
-    # pass
+    print("app main loop stopped")
+    print("main thread finished")
     pass
 
+
+
+# ===========================
+# ======== RESEARCH =========
+# ===========================
+
+
+def game2(window):
+    for i in range(5):
+        print(f"sideT: {i}", flush=True)
+        sleep(1)
+    print("sideT: ok")
+    window.destroy()
+    print("sideT: game ended.")
+
+
+def main2():
+    print("mainT: 01")
+    window = tkinter.Tk()
+    print("mainT: 02")
+    game_thread = Thread(target=game2, args=(window,))
+    window_thread = Thread(target=window.mainloop)
+    print("mainT: 03", flush=True)
+    game_thread.start()
+    print("mainT: 04", flush=True)
+    window_thread.start()
+    print("mainT: 05")
+    game_thread.join()
+    print("mainT: 06")
+    window_thread.join()
+    print("mainT: 07")
+    
 
 
 if __name__ == "__main__":
