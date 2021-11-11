@@ -7,6 +7,23 @@ from time import sleep
 import tkinter
 
 
+"""
+Playfield is a rectangular lattice consisting of Spaces.
+Spaces form rows horizontally and columns vertically.
+Each Space has Coordinates.
+Space can be empty or filled with a Square or with a Block.
+Square is the smallest entity in game, it can fill exactly one Space.
+Piece is a game entity which is consisted of 5 orthogonally adjacent Squares.
+Pieces can move downward or be rotated during their freefall.
+When a Piece hits the ground its Squares turn into Blocks.
+Block is a Square with fixed position in the Playfield.
+When the whole row is filled with Blocks, it is removed.
+Exactly one Piece is present on the playfield.
+When a Piece is turned into Blocks, the next Piece is generated on top of Playfield.
+
+"""
+
+
 class Key(Enum):
     DOWN = 0
     UP = 1
@@ -16,10 +33,19 @@ class Key(Enum):
 
 
 class PieceType(Enum):
+    # to be deprecated probably
     EMPTY = 0
 
 
 class Piece:
+    pass
+
+
+class Square:
+    pass
+
+
+class Block:
     pass
 
 
@@ -34,7 +60,8 @@ class Playfield:
 
 class Window:
     def __init__(self):
-        pass
+        self.window = tkinter.Tk()
+        self.window.title("Pentis by MŚ")
 
     def draw_playfield(self):
         pass
@@ -52,7 +79,9 @@ class Window:
         pass
 
     def close(self):
-        pass
+        print("close windows")
+        self.window.destroy()
+        print("window destroyed")
 
 
 class Game:
@@ -86,12 +115,12 @@ class Game:
 
     def update(self):
         # place piece in the playfield if there is none
-        # check if lost (piece overlaps blocks)
+        # check if game over (piece overlaps blocks)
         # turn piece into blocks if touches ground
         # burn full lines
         # update time_step
         # check max time
-        if self.time > 10.5:
+        if self.time > 5.5:
             self.set_dead()
         pass
 
@@ -100,18 +129,18 @@ class Game:
         self.position_y -= 1
         self.update()
 
-    def draw_view(self, display):
-        display.clear()
-        display.draw_playfield()
-        display.draw_blocks(self.blocks)
-        display.draw_piece(self.piece_type, self.position_x, self.position_y, self.rotation)
-        display.show()
+    def draw_view(self, window):
+        window.clear()
+        window.draw_playfield()
+        window.draw_blocks(self.blocks)
+        window.draw_piece(self.piece_type, self.position_x, self.position_y, self.rotation)
+        window.show()
 
 
 class Context:
-    def __init__(self, game, display):
+    def __init__(self, game, window):
         self.game = game
-        self.display = display
+        self.window = window
 
 
 class App:
@@ -122,10 +151,10 @@ class App:
         pass
 
     def start_event_loop(self):
-        pass
+        self.context.window.window.mainloop()
 
     def close(self):
-        self.context.display.close()
+        self.context.window.close()
 
 
 def game_physics(context):
@@ -133,7 +162,8 @@ def game_physics(context):
         sleep(context.game.time_step)
         context.game.time += context.game.time_step
         context.game.step()
-        context.game.draw_view(context.display)
+        context.game.draw_view(context.window)
+    context.window.close()
 
 
 def handle_event(game, event):
@@ -158,14 +188,14 @@ def handle_event(game, event):
 
 def event_listener(context, event):
     handle_event(context.game, event)
-    context.game.draw_view(context.display)
+    context.game.draw_view(context.window)
 
 
 def main():
     # create game engine
     game = Game()
-    display = Window()
-    context = Context(game=game, display=display)
+    window = Window()
+    context = Context(game=game, window=window)
     # create window
     app = App(context)
     # register event listener
@@ -173,10 +203,16 @@ def main():
     # start game physics
     thread = Thread(target=game_physics, args=(context,))
     # start event loop
-    app.start_event_loop()
+    print("initializing game physics thread")
     thread.start()
+    print("game started")
+    app.start_event_loop()
+    print("app main loop started")
     # close app
+    print("waiting for thread...")
+    thread.stop()
     thread.join()
+    print("thread joined.")
     app.close()
     # pass
     pass
