@@ -270,6 +270,9 @@ class Game:
         self._refresh_view_callback(end=True)
         print("side thread finished")
 
+    def stop(self):
+        self._set_dead()
+
     def handle_event(self, event):
         """
         make event in game
@@ -391,10 +394,9 @@ class Window:
         pass
 
     def close(self):
-        print("close window")
-        #self.window.quit() # to be deleted
-        self.window.destroy()  # this will wait until the main thread ends
-        print("window destroyed")
+        print(self.window.state())
+        if self.window.state() == "running":
+            self.window.destroy()  # this will wait until the main thread ends
 
 
 # ===========================
@@ -412,27 +414,39 @@ class DisplayData:
 class Application:
     def __init__(self):
         self._game = Game(WIDTH, HEIGHT)
-        self._game_loop_thread = Thread(target=self._game.start_loop)
         self._window = Window()
         self._window.register_event_handler(self.handle_event)
 
-    def start(self):
-        self._game_loop_thread.start()
+    def _start_game(self):
+        self._game.start_loop()
+        "waiting until game loop ends..."
+        self._window.close()
+
+    def _start_window(self):
         self._window.start_loop()
-        return
+        "waiting until window loop ends..."
+        self._game.stop()
+
+    def start(self):
+        game_thread = Thread(target=self._start_game)
+        game_thread.start()
+        self._start_window()
 
     def stop(self):
         """
         TODO - BOTH GAME AND WINDOW MUST BE STOPPED WHEN GAME IS
         STOPPED EITHER FROM CLOSING WINDOW WITH X, Esc OR EXCEPTION.
         """
-        pass
-        #self.context.window.close()
+        self._game.stop()
+        self._window.close()
 
     def handle_event(self, event):
-        self._game.handle_event(event)
-        display_data = self._game.get_display_data()
-        self._window.draw(display_data)
+        if event.keysym == "Escape":
+            self.stop()
+        else:
+            self._game.handle_event(event)
+            display_data = self._game.get_display_data()
+            self._window.draw(display_data)
 
     def refresh_view(self):
         return
@@ -442,31 +456,9 @@ class Application:
 # ========== MAIN ===========
 # ===========================
 
-
 def main():
     app = Application()
     app.start()
-    return
-
-##    """ logic to be moved to Application class """
-##    # create game engine
-##    game = Game()
-##    window = Window()
-##    context = Context(game=game, window=window)
-##    # create window
-##    app = App(context)
-##    # register event listener
-##    app.register_event_listener(event_listener)
-##    # start game physics
-##    thread = Thread(target=game_physics, args=(context,))
-##    # start event loop
-##    print("initializing game physics thread")
-##    thread.start()
-##    print("game started, starting main loop")
-##    app.start_event_loop()
-##    print("app main loop stopped")
-##    print("main thread finished")
-##    pass
 
 
 if __name__ == "__main__":
