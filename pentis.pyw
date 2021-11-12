@@ -6,6 +6,10 @@ from time import sleep
 import tkinter
 
 
+WIDTH = 10
+HEIGHT = 20
+
+
 """
 Playfield is a rectangular lattice consisting of Spaces.
 Spaces form rows horizontally and columns vertically.
@@ -159,7 +163,7 @@ class Playfield:
         self._blocks = None
         self._piece_generator = None
 
-        self._reset()
+        self.reset()
 
     def reset(self):
         pass
@@ -239,7 +243,7 @@ class Game:
         pass
 
     def _step(self):
-        print(".", end="")
+        print(".", end="", flush=True)
         self.position_y -= 1
         self._update()
 
@@ -247,6 +251,14 @@ class Game:
         pass
 
     def start_loop(self):
+        i = 15
+        while self._is_alive() and i > 0:
+            i -= 1
+            sleep(0.5)
+            print(".", end="")
+        print("ok")
+        return
+
         while self._is_alive():
             sleep(self._time_step)
             self._time += self._time_step
@@ -318,7 +330,7 @@ class Window:
         self.event_handler = callback
 
     def start_loop(self):
-        self.context.window.window.mainloop()
+        self.window.mainloop()
 
     def clear_display(self):
         pass
@@ -363,13 +375,20 @@ class DisplayData:
 
 class Application:
     def __init__(self):
-        self._game = None
-        self._window = None
+        self._game = Game(WIDTH, HEIGHT)
+        self._window = Window()
+        self._game_loop_thread = Thread(target=self._game.start_loop)
 
     def start(self):
+        self._game_loop_thread.start()
+        self._window.start_loop()
         return
 
     def stop(self):
+        """
+        TODO - BOTH GAME AND WINDOW MUST BE STOPPED WHEN GAME IS
+        STOPPED EITHER FROM CLOSING WINDOW WITH X, Esc OR EXCEPTION.
+        """
         pass
         #self.context.window.close()
 
