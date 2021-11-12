@@ -276,7 +276,41 @@ class Game:
         update game
         take a display data
         update display
+
+        dir of event:
+            'char', 'delta', 'height', 'keycode',
+            'keysym', 'keysym_num', 'num', 'serial',
+            'state', 'time', 'type', 'widget', 'width',
+            'x', 'x_root', 'y', 'y_root'
+
+        dict of event:
+        {
+            'serial': 15,
+            'num': '??',
+            'height': '??',
+            'keycode': 40,
+            'state': 262152,
+            'time': 1567058625,
+            'width': '??',
+            'x': 171,
+            'y': -13,
+            'char': '',
+            'keysym': 'Down',
+            'keysym_num': 65364,
+            'type': <EventType.KeyPress: '2'>,
+            'widget': <tkinter.Tk object .>,
+            'x_root': 205,
+            'y_root': 44,
+            'delta': 0
+        }
         """
+        print(event)
+        print()
+        print(dir(event))
+        print()
+        print(event.__dict__)
+        print("=============")
+        return
         if event.type == "key_stroke":
             key = event.key
             if key == Key.DOWN:
@@ -330,12 +364,14 @@ class Window:
         self.event_handler = callback
 
     def start_loop(self):
+        self.window.bind("<Key>", self.event_handler)
         self.window.mainloop()
 
     def clear_display(self):
         pass
 
     def draw(self, display_data):
+        return
         self.clear_display()
         self.__draw_playfield()
         self.__draw_blocks(self.blocks)
@@ -376,8 +412,9 @@ class DisplayData:
 class Application:
     def __init__(self):
         self._game = Game(WIDTH, HEIGHT)
-        self._window = Window()
         self._game_loop_thread = Thread(target=self._game.start_loop)
+        self._window = Window()
+        self._window.register_event_handler(self.handle_event)
 
     def start(self):
         self._game_loop_thread.start()
@@ -393,9 +430,9 @@ class Application:
         #self.context.window.close()
 
     def handle_event(self, event):
-        self.game.handle_event(event)
-        display_data = self.game.get_display_data()
-        self.window.draw(display_data)
+        self._game.handle_event(event)
+        display_data = self._game.get_display_data()
+        self._window.draw(display_data)
 
     def refresh_view(self):
         return
