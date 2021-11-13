@@ -43,20 +43,9 @@ Application class manages threads.
 # ===========================
 
 class Coordinates:
-    playfield_size = None
-
-    @classmethod
-    def set_playfield_size(cls, height, width):
-        cls.playfield_size = (height, width)
-
     def __init__(self, x, y):
-        if Coordinates.playfield_size is None:
-            raise RuntimeError("Playfield size must be initiated.")
-
         self.x = x
         self.y = y
-
-        self.check_out_of_playfield()
 
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y
@@ -71,44 +60,76 @@ class Coordinates:
         y = self.y - other.y
         return Coordinates(x, y)
 
+    def get_neighbours(self):
+        versor_1 = Coordinates(0, 1)
+        versor_2 = Coordinates(1, 0)
+        neighbours = [self + versor_1, self - versor_1,
+                      self + versor_2, self - versor_2]
+        return neighbours
+
+
+class Block:
+    _playfield_size = None
+
+    @classmethod
+    def set_playfield_size(cls, height, width):
+        cls._playfield_size = (height, width)
+
+    def __init__(self, x, y):
+        if Block._playfield_size is None:
+            raise RuntimeError("Playfield size must be initiated.")
+        self.coordinates = Coordinates(x, y)
+        self.check_out_of_playfield()
+
     def check_out_of_playfield(self):
-        width, height = Coordinates.playfield_size
+        width, height = Square._playfield_size
         if self.x < 0 or self.x >= width or self.y < 0 or self.y >= height:
             raise ValueError("Coordinates are outside the playfield.")
 
-    def get_neighbours(self):
-        return []
-
-
-class Square:
-    """ todo - unify with Block class """
-    def __init__(self, x, y):
-        self.coordinates = Coordinates(x, y)
-
     def move_by(self, vector):
         self.coordinates += vector
-        # check if coordinates ok
+        self.check_out_of_playfield()
 
+    def get_neighbours(self):
+        neigbours = []
+        neigbour_coordinates = self.coordinates.get_neighbours()
+        for coords in neigbour_coordinates:
+            try:
+                block = Block(coords.x, coords.y)
+                neigbours.append(block)
+            except ValueError:
+                pass
+        return neighbours
+
+    def get_color(self):
+        return "red"
+
+
+class Square(Block):
     def rotate(self, center):
         # get coordinates relative to center of rotation
         relative_coords = self.coordinates - center
         x = relative_coords.x
         y = relative_coords.y
+
         # rotate clockwise by 90 degrees
         x, y = y, -x
         rotated_coords = Coordinates(x, y)
+
         # get absolute coordinates
         self.coordinates = rotated_coords + center
+
         # check if coordinates ok
+        self.check_out_of_playfield()
 
+    def get_neighbours(self):
+        neighbour_blocks = super().get_neighbours()
+        neighbours = [Square(nb.coordinates.x, nb.coordinates.y)
+                      for nb in neighbour_blocks]
+        return neighbours
 
-class Block:
-    def __init__(self, x, y):
-        self.coordinates = Coordinates(x, y)
-
-    def move_by(self, vector):
-        self.coordinates += vector
-        # check if coordinates ok
+    def get_color(self):
+        return "lightblue"
 
 
 class Piece:
@@ -476,10 +497,11 @@ class DisplayData:
 
 class Application:
     def __init__(self):
+        Block.set_playfield_size(WIDTH, HEIGHT)
+        PieceGenerator.create_piece_library()
         self._game = Game(WIDTH, HEIGHT)
         self._window = Window(WIDTH, HEIGHT)
         self._window.register_event_handler(self.handle_event)
-        PieceGenerator.create_piece_library()
 
     def _start_game(self):
         self._game.start_loop()
