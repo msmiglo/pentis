@@ -8,6 +8,9 @@ import tkinter
 
 WIDTH = 10
 HEIGHT = 20
+SQUARE_SIDE = 25
+
+PIECE_SIZE = 4
 
 
 """
@@ -251,9 +254,7 @@ class Game:
         pass
 
     def start_loop(self):
-        i = 15
-        while self._is_alive() and i > 0:
-            i -= 1
+        while self._is_alive():
             sleep(0.5)
             print(".", end="")
         print("ok")
@@ -335,7 +336,7 @@ class Game:
         game.update()
 
     def get_display_data(self):
-        return {}
+        return DisplayData(0, 0, 0, 0, 0)
 
 
 def game_physics(context):
@@ -358,30 +359,33 @@ class Window:
     """
     Wrapper class for tkinter.Tk
     """
-    def __init__(self):
+    def __init__(self, width, height):
         self.window = tkinter.Tk()
+        width_pixels = width * SQUARE_SIDE
+        height_pixels = height * SQUARE_SIDE
+        self.window.geometry(f"{width_pixels+20}x{height_pixels+20}")
+        self.window.resizable(False, False)
         self.window.title("Pentis by MŚ")
+        self.canvas = tkinter.Canvas(
+            self.window, width=width_pixels+10,
+            height=height_pixels+10, background='black')
+        self.canvas.place(relx=0.5, rely=0.5, anchor=tkinter.CENTER)
         self.event_handler = None
+        self._alive = False
 
     def register_event_handler(self, callback):
         self.event_handler = callback
 
     def start_loop(self):
         self.window.bind("<Key>", self.event_handler)
+        self._alive = True
         self.window.mainloop()
+        self._alive = False
 
     def clear_display(self):
-        pass
+        self.canvas.delete("all")
 
-    def draw(self, display_data):
-        return
-        self.clear_display()
-        self.__draw_playfield()
-        self.__draw_blocks(self.blocks)
-        self.__draw_piece(self.piece)
-        self.show()
-
-    def __draw_playfield(self):
+    def __draw_playfield(self, playfield_size):
         pass
 
     def __draw_blocks(self, blocks):
@@ -391,11 +395,49 @@ class Window:
         pass
 
     def show(self):
-        pass
+        self.window.update()
+
+    def draw(self, display_data):
+        self.clear_display()
+
+        ########################################
+        self.window.update()
+        sleep(0.1)
+        w = random.randint(5, 240)
+        h = random.randint(8, 410)
+        x = random.randint(5, 240)
+        y = random.randint(8, 410)
+        w, x = min(w, x), max(w, x)
+        h, y = min(h, y), max(h, y)
+        #self.canvas.create_rectangle(150, 10, 240, 80,
+        #    outline="#f50", fill="#f50")
+        self.canvas.create_rectangle(x, y, w, h,
+            outline="#f50", fill="#f50")
+        self.window.update()
+        sleep(1.81)
+        w = random.randint(5, 240)
+        h = random.randint(8, 410)
+        x = random.randint(5, 240)
+        y = random.randint(8, 410)
+        w, x = min(w, x), max(w, x)
+        h, y = min(h, y), max(h, y)
+        #self.canvas.create_rectangle(150, 10, 240, 80,
+        #    outline="#f50", fill="#f50")
+        self.canvas.create_rectangle(x, y, w, h,
+            outline="#f50", fill="#f50")
+        ########################################
+
+        self.__draw_playfield(display_data.playfield_size)
+        self.__draw_blocks(display_data.blocks)
+        self.__draw_piece(display_data.piece)
+        self.show()
 
     def close(self):
+        if self._alive is False:
+            return
         print(self.window.state())
-        if self.window.state() == "running":
+        if self.window.state() == "normal":
+            self._alive = False
             self.window.destroy()  # this will wait until the main thread ends
 
 
@@ -414,17 +456,19 @@ class DisplayData:
 class Application:
     def __init__(self):
         self._game = Game(WIDTH, HEIGHT)
-        self._window = Window()
+        self._window = Window(WIDTH, HEIGHT)
         self._window.register_event_handler(self.handle_event)
 
     def _start_game(self):
         self._game.start_loop()
         "waiting until game loop ends..."
+        # when the game is stopped - close the window as well
         self._window.close()
 
     def _start_window(self):
         self._window.start_loop()
         "waiting until window loop ends..."
+        # when the window is closed - close the game as well
         self._game.stop()
 
     def start(self):
