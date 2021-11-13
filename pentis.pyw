@@ -1,5 +1,4 @@
 
-from enum import Enum
 import random
 from threading import Thread
 from time import sleep
@@ -8,6 +7,10 @@ import tkinter
 
 WIDTH = 10
 HEIGHT = 20
+SQUARE_SIDE = 25
+MARGIN = 10
+
+PIECE_SIZE = 4
 
 
 """
@@ -113,7 +116,7 @@ class Piece:
         self.squares = squares
         self.center = self._determine_center(squares)
 
-    def _determine_center(squares):
+    def _determine_center(self, squares):
         pass
 
     def move_left(self):
@@ -166,7 +169,9 @@ class Playfield:
         self.reset()
 
     def reset(self):
-        pass
+        self._piece = Piece([])
+        self._blocks = []
+        self._piece_generator = PieceGenerator()
 
     def rotate_piece(self):
         pass
@@ -202,7 +207,7 @@ class Playfield:
         pass
 
     def get_display_data(self):
-        return {}
+        return DisplayData(self.size_x, self.size_y, self._piece, self._blocks)
 
 
 class Game:
@@ -251,9 +256,7 @@ class Game:
         pass
 
     def start_loop(self):
-        i = 15
-        while self._is_alive() and i > 0:
-            i -= 1
+        while self._is_alive():
             sleep(0.5)
             print(".", end="")
         print("ok")
@@ -269,6 +272,9 @@ class Game:
         #context.window.close()
         self._refresh_view_callback(end=True)
         print("side thread finished")
+
+    def stop(self):
+        self._set_dead()
 
     def handle_event(self, event):
         """
@@ -304,12 +310,12 @@ class Game:
             'delta': 0
         }
         """
-        print(event)
+        '''print(event)
         print()
         print(dir(event))
         print()
         print(event.__dict__)
-        print("=============")
+        print("=============")'''
         return
         if event.type == "key_stroke":
             key = event.key
@@ -332,69 +338,127 @@ class Game:
         game.update()
 
     def get_display_data(self):
-        return {}
-
-
-def game_physics(context):
-    """ to be moved to Game class as `loop` method, remove context """
+        data = self._playfield.get_display_data()
+        data.time = int(self.time)
+        return data
 
 
 # ===========================
 # ======= WINDOW GUI ========
 # ===========================
 
-class Key(Enum):
-    DOWN = 0
-    UP = 1
-    LEFT = 2
-    RIGHT = 3
-    ESCAPE = 4
+class Key:
+    DOWN = "Down"
+    UP = "Up"
+    LEFT = "Left"
+    RIGHT = "Right"
+    ESCAPE = "Escape"
 
 
 class Window:
     """
     Wrapper class for tkinter.Tk
     """
-    def __init__(self):
+    def __init__(self, width, height):
+        # make window
+        width_pixels = width * SQUARE_SIDE
+        height_pixels = height * SQUARE_SIDE
         self.window = tkinter.Tk()
+        self.window.resizable(False, False)
         self.window.title("Pentis by MŚ")
+
+        # add canvas
+        self.canvas = tkinter.Canvas(
+            self.window,
+            width=width_pixels + 2*MARGIN,
+            height=height_pixels + 2*MARGIN,
+            background='black'
+        )
+        self.canvas.pack()
+
+        # other data
         self.event_handler = None
+        self._alive = False
 
     def register_event_handler(self, callback):
         self.event_handler = callback
 
     def start_loop(self):
         self.window.bind("<Key>", self.event_handler)
-        self.window.mainloop()
+        self._alive = True
+        self.window.mainloop()  # blocking
+        self._alive = False
 
     def clear_display(self):
-        pass
+        self.canvas.delete("all")
 
-    def draw(self, display_data):
-        return
-        self.clear_display()
-        self.__draw_playfield()
-        self.__draw_blocks(self.blocks)
-        self.__draw_piece(self.piece)
-        self.show()
+    def __draw_square(self, x, y, is_piece=False):
+        if is_piece:
+            color = "lightblue"
+        else:
+            color = "red"
+        offset = 2 + MARGIN
+        x_position = x * SQUARE_SIDE
+        y_position = y * SQUARE_SIDE
 
-    def __draw_playfield(self):
-        pass
+        self.canvas.create_rectangle(
+            x_position + 2 + offset,
+            y_position + 2 + offset,
+            x_position + SQUARE_SIDE - 2 + offset,
+            y_position + SQUARE_SIDE - 2 + offset,
+            outline="white", width=2, fill=color)
+
+    def __draw_playfield(self, playfield_size):
+        x, y = playfield_size
+        offset = 2 + MARGIN
+        boundary_colors = [
+            "green", "green",
+            "yellow", "yellow",
+            "grey", "grey",
+            "red", "red",
+            "cyan", "cyan",
+            "blue", "blue",
+        ]
+        for thickness_px, color in enumerate(2*boundary_colors):
+            self.canvas.create_rectangle(
+                0 + offset - thickness_px,
+                0 + offset - thickness_px,
+                x * SQUARE_SIDE - 1 + offset + thickness_px,
+                y * SQUARE_SIDE - 1 + offset + thickness_px,
+                outline=color, fill=None)
 
     def __draw_blocks(self, blocks):
-        pass
+        for block in blocks:
+            x = block.coodinates.x
+            y = block.coodinates.y
+            self.__draw_square(x, y, is_piece=False)
 
     def __draw_piece(self, piece):
-        pass
+        for sq in piece.squares:
+            x = sq.coodinates.x
+            y = sq.coodinates.y
+            self.__draw_square(x, y, is_piece=True)
+        for i in range(20):
+            x = random.randint(0, WIDTH-1)
+            y = random.randint(0, HEIGHT-1)
+            self.__draw_square(x, y)
 
     def show(self):
-        pass
+        self.window.update()
+
+    def draw(self, display_data):
+        self.clear_display()
+        self.__draw_playfield(display_data.playfield_size)
+        self.__draw_blocks(display_data.blocks)
+        self.__draw_piece(display_data.piece)
+        self.show()
 
     def close(self):
-        print("close window")
-        #self.window.quit() # to be deleted
-        self.window.destroy()  # this will wait until the main thread ends
-        print("window destroyed")
+        if self._alive is False:
+            return
+        if self.window.state() == "normal":
+            self._alive = False
+            self.window.destroy()  # this will wait until the main thread ends
 
 
 # ===========================
@@ -402,7 +466,8 @@ class Window:
 # ===========================
 
 class DisplayData:
-    def __init__(self, playfield_x_size, playfield_y_size, piece, blocks, time):
+    def __init__(self, playfield_x_size, playfield_y_size,
+                 piece, blocks, time=None):
         self.playfield_size = (playfield_x_size, playfield_y_size)
         self.piece = piece
         self.blocks = blocks
@@ -412,61 +477,52 @@ class DisplayData:
 class Application:
     def __init__(self):
         self._game = Game(WIDTH, HEIGHT)
-        self._game_loop_thread = Thread(target=self._game.start_loop)
-        self._window = Window()
+        self._window = Window(WIDTH, HEIGHT)
         self._window.register_event_handler(self.handle_event)
+        PieceGenerator.create_piece_library()
+
+    def _start_game(self):
+        self._game.start_loop()
+        "waiting until game loop ends..."
+        # when the game is stopped - close the window as well
+        self._window.close()
+
+    def _start_window(self):
+        self._window.start_loop()
+        "waiting until window loop ends..."
+        # when the window is closed - close the game as well
+        self._game.stop()
 
     def start(self):
-        self._game_loop_thread.start()
-        self._window.start_loop()
-        return
+        # put game loop in side thread
+        game_thread = Thread(target=self._start_game)
+        game_thread.start()
+        # keep window event loop in main thread
+        self._start_window()
 
     def stop(self):
-        """
-        TODO - BOTH GAME AND WINDOW MUST BE STOPPED WHEN GAME IS
-        STOPPED EITHER FROM CLOSING WINDOW WITH X, Esc OR EXCEPTION.
-        """
-        pass
-        #self.context.window.close()
+        self._game.stop()
+        self._window.close()
 
     def handle_event(self, event):
-        self._game.handle_event(event)
-        display_data = self._game.get_display_data()
-        self._window.draw(display_data)
+        if event.keysym == Key.ESCAPE:
+            self.stop()
+        else:
+            self._game.handle_event(event)
+            self.refresh_view()
 
     def refresh_view(self):
-        return
+        display_data = self._game.get_display_data()
+        self._window.draw(display_data)
 
 
 # ===========================
 # ========== MAIN ===========
 # ===========================
 
-
 def main():
     app = Application()
     app.start()
-    return
-
-##    """ logic to be moved to Application class """
-##    # create game engine
-##    game = Game()
-##    window = Window()
-##    context = Context(game=game, window=window)
-##    # create window
-##    app = App(context)
-##    # register event listener
-##    app.register_event_listener(event_listener)
-##    # start game physics
-##    thread = Thread(target=game_physics, args=(context,))
-##    # start event loop
-##    print("initializing game physics thread")
-##    thread.start()
-##    print("game started, starting main loop")
-##    app.start_event_loop()
-##    print("app main loop stopped")
-##    print("main thread finished")
-##    pass
 
 
 if __name__ == "__main__":
