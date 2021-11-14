@@ -5,12 +5,12 @@ from time import sleep
 import tkinter
 
 
-WIDTH = 10
-HEIGHT = 20
+WIDTH = 16
+HEIGHT = 24
 SQUARE_SIDE = 25
 MARGIN = 10
 
-PIECE_SIZE = 4
+PIECE_SIZE = 5
 
 
 """
@@ -272,9 +272,12 @@ class Piece:
             sq.rotate(self.center)
             sq.check_out_of_playfield()
 
-    def copy(self):
+    def copy(self, with_center=False):
         squares_copy = [sq.copy() for sq in self.squares]
-        return Piece(squares_copy)
+        piece_copy = Piece(squares_copy)
+        if with_center:
+            piece_copy.center = Coordinates(self.center.x, self.center.y)
+        return piece_copy
 
     def get_blocks(self):
         blocks = [Block(sq.coordinates.x, sq.coordinates.y) for sq in self.squares]
@@ -376,39 +379,108 @@ class Playfield:
         self._piece = self._piece_generator.make_piece()
 
     def rotate_piece(self):
-        pass
+        piece_copy = self._piece.copy(with_center=True)
+        # if this operation will cause error - ignore it
+        try:
+            piece_copy.rotate()
+            self._check_colission(piece_copy)
+        except ValueError:
+            return
+        # everything ok, perform action on actual piece
+        self._piece.rotate()
 
     def move_piece_left(self):
-        pass
+        piece_copy = self._piece.copy()
+        # if this operation will cause error - ignore it
+        try:
+            piece_copy.move_left()
+            self._check_colission(piece_copy)
+        except ValueError:
+            return
+        # everything ok, perform action on actual piece
+        self._piece.move_left()
 
     def move_piece_right(self):
-        pass
+        piece_copy = self._piece.copy()
+        # if this operation will cause error - ignore it
+        try:
+            piece_copy.move_right()
+            self._check_colission(piece_copy)
+        except ValueError:
+            return
+        # everything ok, perform action on actual piece
+        self._piece.move_right()
 
     def move_piece_down(self):
-        pass
+        piece_copy = self._piece.copy()
+        # if moving down will cause error or colision - turn into blocks
+        try:
+            piece_copy.move_down()
+            self._check_colission(piece_copy)
+        except ValueError:
+            self._turn_piece_into_blocks()
+            self._burn_lines()
+            self._make_new_piece()
+            return
+        # everything ok, perform action on actual piece
+        self._piece.move_down()
 
     def _update(self):
+        """ TODO - FINISH """
         pass
 
     def _check_game_over(self):
-        pass
+        try:
+            self._check_colission(self._piece)
+            return False
+        except ValueError:
+            return True
 
-    def _check_colission(self):
-        pass
-
-    def _check_hit_ground(self):
-        pass
+    def _check_colission(self, piece):
+        blocks_coords = [bl.coordinates for bl in self._blocks]
+        for sq in piece.squares:
+            if sq.coordinates in blocks_coords:
+                raise ValueError("Piece is coliding with existing blocks!")
 
     def _turn_piece_into_blocks(self):
-        blocks = self._piece.turn_into_blocks()
+        blocks = self._piece.get_blocks()
         self._piece = None
         self._blocks += blocks
 
     def _burn_lines(self):
+        """ TODO - FINISH """
+        max_x, max_y = Block._playfield_size
         # find lines to burn
+        rows = {i: 0 for i in range(max_y)}
+        for bl in self._blocks:
+            rows[bl.coordinates.y] += 1
+        rows_to_burn = [i for i in rows if rows[i] == max_x]
+        if len(rows_to_burn) == 0:
+            return
+
         # display a flash effect - TODO (could be difficult)
-        # move down the other blocks
-        pass
+
+        # calculate displacement for blocks
+        rows_displacement = {}
+        current_displacement = 0
+        for row_i in range(max_y):
+            if row_i in rows_to_burn:
+                rows_displacement[row_i] = None
+                current_displacement -= 1
+            else:
+                vector = Coordinates(0, current_displacement)
+                rows_displacement[row_i] = vector
+
+        # burn lines and move down the other blocks
+        new_blocks = []
+        for bl in self._blocks:
+            y = bl.coordinates.y
+            displacement = rows_displacement[y]
+            if displacement is None:
+                continue
+            bl.move_by(displacement)
+            new_blocks.append(bl)
+        self._blocks = new_blocks
 
     def _make_new_piece(self):
         if self._piece is not None:
@@ -422,9 +494,10 @@ class Playfield:
 class Game:
     def __init__(self, size_x, size_y):
         self._playfield = Playfield(size_x, size_y)
-        self._time = 0.0
-        self._time_step = 1.0
-        self._alive = False
+        self.time = None
+        self.time_step = None
+        self.alive = False
+        self.pause = False
         self._refresh_view_callback = None
 
         self._reset()
@@ -432,8 +505,9 @@ class Game:
     def _reset(self):
         self._playfield.reset()
         self.time = 0.0
-        self.time_step = 1.0
+        self.time_step = 0.3
         self.alive = True
+        self.pause = False
 
     def _is_alive(self):
         return bool(self.alive)
@@ -441,119 +515,71 @@ class Game:
     def _set_dead(self):
         self.alive = False
 
+    def start_loop(self):
+        while self._is_alive():
+            self._step()
+        print("ok")
+
+    def _step(self):
+        sleep(self.time_step)
+        if self.pause:
+            return
+        self.time += self.time_step
+        self._playfield.move_piece_down()
+        self._update()
+        print(".", end="", flush=True)
+
     def _update(self):
         """ TODO - FINISH """
+        self._refresh_view_callback()
+        if self._playfield._check_game_over():
+            self._reset()
         # place piece in the playfield if there is none
         # check if game over (piece overlaps blocks)
         # turn piece into blocks if touches ground
         # burn full lines
         # update time_step
         # check max time
-        if self.time > 5.5:
-            self.set_dead()
-        pass
-
-    def _step(self):
-        """ TODO - remove update or step """
-        print(".", end="", flush=True)
-        self._update()
-
-    def register_callback(self, callback):
-        self._refresh_view_callback = callback
-
-    def start_loop(self):
-        """ TODO - FINISH """
-        while self._is_alive():
-            sleep(0.5)
-            print(".", end="")
-        print("ok")
-        return
-
-        while self._is_alive():
-            sleep(self._time_step)
-            self._time += self._time_step
-            self._step()
-            self._refresh_view_callback()
-            #context.game.draw_view(context.window)
-        print("side thread game over, trying to close window..")
-        #context.window.close()
-        self._refresh_view_callback(end=True)
-        print("side thread finished")
 
     def stop(self):
         self._set_dead()
 
     def handle_event(self, event):
-        """ TODO - FINISH """
-        self._refresh_view_callback()
-        return
+        # hangle controls
+        if event.keysym == Key.PAUSE:
+            self.pause = not self.pause
+            return
+        elif event.keysym in ["r", "R"]:
+            self._reset()
+            self._update()
 
-
-
-
-        """
-        make event in game
-        update game
-        take a display data
-        update display
-
-        dir of event:
-            'char', 'delta', 'height', 'keycode',
-            'keysym', 'keysym_num', 'num', 'serial',
-            'state', 'time', 'type', 'widget', 'width',
-            'x', 'x_root', 'y', 'y_root'
-
-        dict of event:
-        {
-            'serial': 15,
-            'num': '??',
-            'height': '??',
-            'keycode': 40,
-            'state': 262152,
-            'time': 1567058625,
-            'width': '??',
-            'x': 171,
-            'y': -13,
-            'char': '',
-            'keysym': 'Down',
-            'keysym_num': 65364,
-            'type': <EventType.KeyPress: '2'>,
-            'widget': <tkinter.Tk object .>,
-            'x_root': 205,
-            'y_root': 44,
-            'delta': 0
-        }
-        """
-        '''print(event)
-        print()
-        print(dir(event))
-        print()
-        print(event.__dict__)
-        print("=============")'''
-        if event.type == "key_stroke":
-            key = event.key
-            if key == Key.DOWN:
-                game.position_y -= 1
-            elif key == Key.UP:
-                game.rotation += 1
-            elif key == Key.LEFT:
-                game.position_x -= 1
-            elif key == Key.RIGHT:
-                game.position_x += 1
-            elif key == Key.ESCAPE:
-                game.set_dead()
-            else:
-                pass
-        elif event.type == "window_closed":
-            self._set_dead()
-        else:
+        if self.pause:
+            # IF SWITCHED OFF - YOU CAN PLAY ON PAUSE!
+            #return
             pass
-        game._update()
+
+        # handle arrow keys
+        if event.keysym == Key.UP:
+            self._playfield.rotate_piece()
+        elif event.keysym == Key.LEFT:
+            self._playfield.move_piece_left()
+        elif event.keysym == Key.RIGHT:
+            self._playfield.move_piece_right()
+        elif event.keysym == Key.DOWN:
+            self._playfield.move_piece_down()
+        else:
+            return
+
+        # refresh view
+        self._update()
 
     def get_display_data(self):
         data = self._playfield.get_display_data()
         data.time = int(self.time)
         return data
+
+    def register_callback(self, callback):
+        self._refresh_view_callback = callback
 
 
 # ===========================
@@ -561,6 +587,7 @@ class Game:
 # ===========================
 
 class Key:
+    PAUSE = "space"
     DOWN = "Down"
     UP = "Up"
     LEFT = "Left"
@@ -642,8 +669,8 @@ class Window:
 
     def __draw_blocks(self, blocks):
         for block in blocks:
-            x = block.coodinates.x
-            y = block.coodinates.y
+            x = block.coordinates.x
+            y = block.coordinates.y
             self.__draw_square(x, y, is_piece=False)
 
     def __draw_piece(self, piece):
@@ -652,15 +679,17 @@ class Window:
                 x = sq.coordinates.x
                 y = sq.coordinates.y
                 self.__draw_square(x, y, is_piece=True)
-        for i in range(20):
-            x = random.randint(0, WIDTH-1)
-            y = random.randint(0, HEIGHT-1)
-            self.__draw_square(x, y)
 
     def show(self):
         self.window.update()
 
     def draw(self, display_data):
+        # Unfortunately tkinter is thread-agnostic, and drawing anything
+        # from outside the main thread will cause problems with
+        # updating the window. Therefore the separate thread used
+        # to tick-tock the game steps causes massive lags with
+        # drawing objects on canvas. Probable solution is to make some
+        # clock generating events and bind some handler to them.
         self.clear_display()
         self.__draw_playfield(display_data.playfield_size)
         self.__draw_blocks(display_data.blocks)
@@ -725,7 +754,6 @@ class Application:
             self.stop()
         else:
             self._game.handle_event(event)
-            #self.refresh_view()
 
     def refresh_view(self):
         display_data = self._game.get_display_data()
