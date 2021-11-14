@@ -1,5 +1,6 @@
 
 from unittest import main, skip, TestCase
+from unittest.mock import MagicMock
 
 from pentis import Block, Coordinates, DisplayData
 from pentis import Piece, Playfield, PieceGenerator, Square
@@ -193,18 +194,16 @@ class TestSquare(TestCase):
         with self.assertRaises(ValueError):
             square = Square(-2, 2)
 
-    def test_move_by(self):
-        square = Square(5, 3)
-        vector = Coordinates(1, 1)
-        square.move_by(vector)
-        self.assertEqual(square.coordinates.x, 6)
-        self.assertEqual(square.coordinates.y, 4)
-
-    def test_move_by_error(self):
-        square = Square(5, 3)
-        vector = Coordinates(1, 2)
-        with self.assertRaises(ValueError):
-            square.move_by(vector)
+    def test_get_neighbours(self):
+        square = Square(2, 3)
+        neighbours = square.get_neighbours()
+        self.assertEqual(len(neighbours), 4)
+        expected = set([(1, 3), (3, 3), (2, 4), (2, 2)])
+        for neighbour in neighbours:
+            x = neighbour.coordinates.x
+            y = neighbour.coordinates.y
+            self.assertTrue((x, y) in expected)
+            self.assertEqual(type(neighbour), Square)
 
     def test_rotate(self):
         square = Square(5, 3)
@@ -227,8 +226,19 @@ class TestDisplayData(TestCase):
     def tearDown(self):
         pass
 
+    def test_create_error(self):
+        with self.assertRaises(TypeError):
+            dd = DisplayData(12, 20)
+
     def test_creation(self):
-        dd = DisplayData(4, (20, 10), Piece(5), 30)
+        mock_piece = MagicMock()
+        mock_block_1 = MagicMock()
+        mock_block_2 = MagicMock()
+        dd = DisplayData(12, 20, mock_piece, [mock_block_1, mock_block_2])
+        self.assertTupleEqual(dd.playfield_size, (12, 20))
+        self.assertIs(dd.piece, mock_piece)
+        self.assertEqual(dd.blocks, [mock_block_1, mock_block_2])
+        self.assertIsNone(dd.time)
 
 
 if __name__ == "__main__":
