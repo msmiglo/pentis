@@ -289,7 +289,7 @@ class TestPiece(TestCase):
         squares = [Square(5, 2), Square(6, 2)]
         piece = Piece(squares)
         self.assertListEqual(piece.squares, squares)
-        self.assertEqual(piece.center, Coordinates(5, 2))
+        self.assertEqual(piece.center, Coordinates(6, 2))
 
     def test_move_left(self):
         with self.assertRaises(ValueError):
@@ -370,7 +370,7 @@ class TestPiece(TestCase):
     def test_move_to_zero_2(self):
         # arrange
         expected_squares = [Square(1, 0), Square(0, 0)]
-        coords = Coordinates(0, 0)
+        coords = Coordinates(1, 0)
         # act
         self.piece_right._move_to_zero()
         # assert
@@ -408,6 +408,69 @@ class TestPiece(TestCase):
         other = Piece([
             Square(2, 1), Square(3, 1), Square(4, 1), Square(4, 2)])
         self.assertEqual(self.piece_L_shape, other)
+
+
+class TestPieceGenerator(TestCase):
+    def setUp(self):
+        Block.set_playfield_size(12, 30)
+
+    def tearDown(self):
+        Block._playfield_size = None
+        PieceGenerator.piece_library = None
+
+    def test_extend_piece(self):
+        piece = Piece([Square(3, 1), Square(3, 2), Square(3, 3)])
+        pieces = PieceGenerator.extend_piece(piece)
+        self.assertEqual(len(pieces), 4)
+
+    def test_extend_library(self):
+        piece_1 = Piece([Square(3, 1), Square(3, 2)])
+        piece_2 = Piece([Square(3, 1)])
+        new_library = PieceGenerator.extend_library([piece_1, piece_2])
+        self.assertEqual(len(new_library), 3)
+        self.assertIn(
+            Piece([Square(3, 1), Square(3, 2)]),
+            new_library
+        )
+        self.assertIn(
+            Piece([Square(3, 1), Square(3, 2), Square(3, 3)]),
+            new_library
+        )
+        self.assertIn(
+            Piece([Square(3, 1), Square(3, 2), Square(2, 2)]),
+            new_library
+        )
+
+    def test_create_piece_library(self):
+        piece = Piece([Square(3, 1), Square(3, 2)])
+        PieceGenerator.create_piece_library(2)
+        library = PieceGenerator.piece_library
+        self.assertEqual(len(library), 1)
+        self.assertEqual(library[0], piece)
+        self.assertEqual(type(library[0]), Piece)
+
+    def test_create_piece_library(self):
+        PieceGenerator.create_piece_library(5)
+        library = PieceGenerator.piece_library
+        self.assertEqual(len(library), 18)
+
+    def test_create_piece_3(self):
+        PieceGenerator.create_piece_library(3)
+        pg = PieceGenerator()
+        for i in range(10):
+            new_piece = pg.make_piece()
+            self.assertIn(new_piece, PieceGenerator.piece_library)
+            self.assertEqual(new_piece.center.x, 6)
+            self.assertEqual(new_piece.extent()["y"][1], 29)
+
+    def test_create_piece_5(self):
+        PieceGenerator.create_piece_library(5)
+        pg = PieceGenerator()
+        for i in range(3):
+            new_piece = pg.make_piece()
+            self.assertIn(new_piece, PieceGenerator.piece_library)
+            self.assertEqual(new_piece.center.x, 6)
+            self.assertEqual(new_piece.extent()["y"][1], 29)
 
 
 class TestDisplayData(TestCase):

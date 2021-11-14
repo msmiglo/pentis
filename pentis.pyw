@@ -14,6 +14,8 @@ PIECE_SIZE = 4
 
 
 """
+TODO - update
+
 Playfield is a rectangular lattice consisting of Spaces.
 Spaces form rows horizontally and columns vertically.
 Each Space has Coordinates.
@@ -50,6 +52,9 @@ class Coordinates:
     def __hash__(self):
         return hash(("Coordinates", self.x, self.y))
 
+    def __repr__(self):
+        return f"Coords({self.x}, {self.y})"
+
     def __eq__(self, other):
         if type(other) != type(self):
             return False
@@ -66,8 +71,8 @@ class Coordinates:
         return Coordinates(x, y)
 
     def get_neighbours(self):
-        versor_1 = Coordinates(0, 1)
-        versor_2 = Coordinates(1, 0)
+        versor_1 = Coordinates(1, 0)
+        versor_2 = Coordinates(0, 1)
         neighbours = [self + versor_1, self - versor_1,
                       self + versor_2, self - versor_2]
         return neighbours
@@ -88,6 +93,9 @@ class Block:
 
     def __hash__(self):
         return hash(("Block", self.coordinates.x, self.coordinates.y))
+
+    def __repr__(self):
+        return f"Block({self.coordinates.x}, {self.coordinates.y})"
 
     def __eq__(self, other):
         if type(other) != type(self):
@@ -130,6 +138,9 @@ class Square(Block):
     def __hash__(self):
         return hash(("Square", self.coordinates.x, self.coordinates.y))
 
+    def __repr__(self):
+        return f"Square({self.coordinates.x}, {self.coordinates.y})"
+
     def rotate(self, center):
         # get coordinates relative to center of rotation
         relative_coords = self.coordinates - center
@@ -166,11 +177,32 @@ class Piece:
         self.center = None
         self._determine_center()
 
+    def extent(self):
+        xs = [sq.coordinates.x for sq in self.squares]
+        ys = [sq.coordinates.y for sq in self.squares]
+        min_x = min(xs)
+        max_x = max(xs)
+        min_y = min(ys)
+        max_y = max(ys)
+        return {"x": (min_x, max_x), "y": (min_y, max_y),
+                "min": (min_x, min_y), "max": (max_x, max_y)}
+
     def _move_to_zero(self):
-        min_x = min([sq.coordinates.x for sq in self.squares])
-        min_y = min([sq.coordinates.y for sq in self.squares])
+        min_x, min_y = self.extent()["min"]
         translation_vector = Coordinates(-min_x, -min_y)
         self._move_by_vector(translation_vector)
+
+    def __str__(self):
+        copy = self.copy()
+        copy._move_to_zero()
+        max_x, max_y = copy.extent()["max"]
+        grid = [["." for j in range(max_x + 3)] for i in range(max_y + 3)]
+        for sq in copy.squares:
+            grid[sq.coordinates.y + 1][sq.coordinates.x + 1] = "X"
+        grid[copy.center.y + 1][copy.center.x + 1] = "O"
+        grid = [" ".join(line) for line in grid]
+        grid = "\n".join(grid[::-1])
+        return grid
 
     def __eq__(self, other):
         # check type
@@ -201,6 +233,7 @@ class Piece:
         for piece_i in rotation_copies:
             if set(piece_i.squares) == set(original.squares):
                 return True
+        # 6) no comparison passed
         return False
 
     def _determine_center(self):
@@ -210,7 +243,7 @@ class Piece:
             weighted_position += sq.coordinates
         x_center = weighted_position.x / n_squares
         y_center = weighted_position.y / n_squares
-        self.center = Coordinates(int(x_center), int(y_center))
+        self.center = Coordinates(int(x_center + 0.5), int(y_center + 0.5))
 
     def _move_by_vector(self, vector):
         for sq in self.squares:
@@ -251,16 +284,80 @@ class Piece:
 class PieceGenerator:
     piece_library = None
 
+    @staticmethod
+    def extend_piece(piece):
+        assert type(piece) == Piece, f"got piece of type: `{type(piece)}`"
+
+        # get piece neighbouring squares
+        neighbours = []
+        for sq in piece.squares:
+            neighbours += sq.get_neighbours()
+        neighbours = set(neighbours).difference(set(piece.squares))
+
+        # make new pieces by adding neighbouring square - one for each
+        new_pieces = []
+        for nb in neighbours:
+            new_squares = piece.copy().squares
+            new_squares.append(nb)
+            new_piece = Piece(new_squares)
+            if new_piece not in new_pieces:
+                new_pieces.append(new_piece)
+
+        return new_pieces
+
+    @staticmethod
+    def extend_library(library):
+        if not library:
+            x, y = Block._playfield_size
+            square = Square(x // 2, y // 2)
+            piece = Piece([square])
+            return [piece]
+
+        new_library = []
+        for old_piece in library:
+            new_pieces = PieceGenerator.extend_piece(old_piece)
+            for new_piece in new_pieces:
+                if new_piece not in new_library:
+                    new_library.append(new_piece)
+
+        return new_library
+
     @classmethod
-    def create_piece_library(cls):
-        pass
+    def create_piece_library(cls, piece_size):
+        # make library of unique pieces
+        library = None
+        for i in range(piece_size):
+            library = cls.extend_library(library)
+
+        # rotate pieces that are standing vertically
+        for pc in library:
+            extent = pc.extent()
+            x_span = extent["x"][1] - extent["x"][0]
+            y_span = extent["y"][1] - extent["y"][0]
+            if y_span > x_span:
+                pc.rotate()
+
+        # shift pieces to starting position
+        y_playfield_limit = Block._playfield_size[1] - 1
+        x_playfield_middle = Block._playfield_size[0] // 2
+        for pc in library:
+            y_max = pc.extent()["y"][1]
+            y_center = pc.center.y
+            # upper edge (y_max) should be moved to the playfield limit
+            new_y_center = y_center + (y_playfield_limit - y_max)
+            new_coords = Coordinates(x_playfield_middle, new_y_center)
+            pc.move_to(new_coords)
+
+        # assign pieces libary to class property
+        cls.piece_library = library
 
     def __init__(self):
         if PieceGenerator.piece_library is None:
-            PieceGenerator.create_piece_library()
+            raise RuntimeError("Piece library must be created first.")
 
     def make_piece(self):
-        pass
+        piece = random.choice(self.piece_library).copy()
+        return piece
 
 
 class Playfield:
@@ -274,9 +371,9 @@ class Playfield:
         self.reset()
 
     def reset(self):
-        self._piece = None
         self._blocks = []
         self._piece_generator = PieceGenerator()
+        self._piece = self._piece_generator.make_piece()
 
     def rotate_piece(self):
         pass
@@ -303,13 +400,20 @@ class Playfield:
         pass
 
     def _turn_piece_into_blocks(self):
-        pass
+        blocks = self._piece.turn_into_blocks()
+        self._piece = None
+        self._blocks += blocks
 
     def _burn_lines(self):
+        # find lines to burn
+        # display a flash effect - TODO (could be difficult)
+        # move down the other blocks
         pass
 
     def _make_new_piece(self):
-        pass
+        if self._piece is not None:
+            raise RuntimeError("There is already a piece in the playfield.")
+        self._piece = self._piece_generator.make_piece()
 
     def get_display_data(self):
         return DisplayData(self.size_x, self.size_y, self._piece, self._blocks)
@@ -326,14 +430,10 @@ class Game:
         self._reset()
 
     def _reset(self):
-        self.alive = True
+        self._playfield.reset()
         self.time = 0.0
-        self.piece = None
-        self.position_x = 5
-        self.position_y = 20
-        self.rotation = 0
         self.time_step = 1.0
-        self.blocks = []
+        self.alive = True
 
     def _is_alive(self):
         return bool(self.alive)
@@ -342,6 +442,7 @@ class Game:
         self.alive = False
 
     def _update(self):
+        """ TODO - FINISH """
         # place piece in the playfield if there is none
         # check if game over (piece overlaps blocks)
         # turn piece into blocks if touches ground
@@ -353,14 +454,15 @@ class Game:
         pass
 
     def _step(self):
+        """ TODO - remove update or step """
         print(".", end="", flush=True)
-        self.position_y -= 1
         self._update()
 
-    def register_callback(callback):
-        pass
+    def register_callback(self, callback):
+        self._refresh_view_callback = callback
 
     def start_loop(self):
+        """ TODO - FINISH """
         while self._is_alive():
             sleep(0.5)
             print(".", end="")
@@ -382,6 +484,13 @@ class Game:
         self._set_dead()
 
     def handle_event(self, event):
+        """ TODO - FINISH """
+        self._refresh_view_callback()
+        return
+
+
+
+
         """
         make event in game
         update game
@@ -421,7 +530,6 @@ class Game:
         print()
         print(event.__dict__)
         print("=============")'''
-        return
         if event.type == "key_stroke":
             key = event.key
             if key == Key.DOWN:
@@ -440,7 +548,7 @@ class Game:
             self._set_dead()
         else:
             pass
-        game.update()
+        game._update()
 
     def get_display_data(self):
         data = self._playfield.get_display_data()
@@ -541,8 +649,8 @@ class Window:
     def __draw_piece(self, piece):
         if piece is not None:
             for sq in piece.squares:
-                x = sq.coodinates.x
-                y = sq.coodinates.y
+                x = sq.coordinates.x
+                y = sq.coordinates.y
                 self.__draw_square(x, y, is_piece=True)
         for i in range(20):
             x = random.randint(0, WIDTH-1)
@@ -583,8 +691,9 @@ class DisplayData:
 class Application:
     def __init__(self):
         Block.set_playfield_size(WIDTH, HEIGHT)
-        PieceGenerator.create_piece_library()
+        PieceGenerator.create_piece_library(PIECE_SIZE)
         self._game = Game(WIDTH, HEIGHT)
+        self._game.register_callback(self.refresh_view)
         self._window = Window(WIDTH, HEIGHT)
         self._window.register_event_handler(self.handle_event)
 
@@ -616,7 +725,7 @@ class Application:
             self.stop()
         else:
             self._game.handle_event(event)
-            self.refresh_view()
+            #self.refresh_view()
 
     def refresh_view(self):
         display_data = self._game.get_display_data()
