@@ -163,38 +163,87 @@ class Square(Block):
 class Piece:
     def __init__(self, squares):
         self.squares = squares
-        self.center = self._determine_center()
+        self.center = None
+        self._determine_center()
+
+    def _move_to_zero(self):
+        min_x = min([sq.coordinates.x for sq in self.squares])
+        min_y = min([sq.coordinates.y for sq in self.squares])
+        translation_vector = Coordinates(-min_x, -min_y)
+        self._move_by_vector(translation_vector)
 
     def __eq__(self, other):
+        # check type
         if type(other) != type(self):
             return False
-        pass
+        # check if identical
+        if set(self.squares) == set(other.squares):
+            return True
+
+        # try rotating and shifting before comparison:
+        # 1) make copies
+        original = self.copy()
+        comparison = other.copy()
+        # 2) move comparison piece to center of playfield
+        x, y = Block._playfield_size
+        center_of_playfield = Coordinates(x // 2, y // 2)
+        comparison.move_to(center_of_playfield)
+        # 3) make copies for all rotations
+        rotation_copies = []
+        for i in range(4):
+            rotation_copies.append(comparison.copy())
+            comparison.rotate()
+        # 4) move all copies to same position
+        original._move_to_zero()
+        for piece_i in rotation_copies:
+            piece_i._move_to_zero()
+        # 5) compare to all four
+        for piece_i in rotation_copies:
+            if set(piece_i.squares) == set(original.squares):
+                return True
+        return False
 
     def _determine_center(self):
-        pass
+        n_squares = len(self.squares)
+        weighted_position = Coordinates(0, 0)
+        for sq in self.squares:
+            weighted_position += sq.coordinates
+        x_center = weighted_position.x / n_squares
+        y_center = weighted_position.y / n_squares
+        self.center = Coordinates(int(x_center), int(y_center))
+
+    def _move_by_vector(self, vector):
+        for sq in self.squares:
+            sq.move_by(vector)
+            sq.check_out_of_playfield()
+        self.center += vector
 
     def move_left(self):
-        pass
+        vector = Coordinates(-1, 0)
+        self._move_by_vector(vector)
 
     def move_right(self):
-        pass
+        vector = Coordinates(1, 0)
+        self._move_by_vector(vector)
 
     def move_down(self):
-        pass
+        vector = Coordinates(0, -1)
+        self._move_by_vector(vector)
 
     def move_to(self, coords):
-        pass
+        vector = coords - self.center
+        self._move_by_vector(vector)
 
-    def rotate(selt):
-        pass
+    def rotate(self):
+        for sq in self.squares:
+            sq.rotate(self.center)
+            sq.check_out_of_playfield()
 
     def copy(self):
-        return
         squares_copy = [sq.copy() for sq in self.squares]
         return Piece(squares_copy)
 
     def get_blocks(self):
-        return
         blocks = [Block(sq.coordinates.x, sq.coordinates.y) for sq in self.squares]
         return blocks
 
@@ -225,7 +274,7 @@ class Playfield:
         self.reset()
 
     def reset(self):
-        self._piece = Piece([])
+        self._piece = None
         self._blocks = []
         self._piece_generator = PieceGenerator()
 
@@ -455,7 +504,7 @@ class Window:
             color = "red"
         offset = 2 + MARGIN
         x_position = x * SQUARE_SIDE
-        y_position = y * SQUARE_SIDE
+        y_position = (HEIGHT - y - 1) * SQUARE_SIDE
 
         self.canvas.create_rectangle(
             x_position + 2 + offset,
@@ -490,10 +539,11 @@ class Window:
             self.__draw_square(x, y, is_piece=False)
 
     def __draw_piece(self, piece):
-        for sq in piece.squares:
-            x = sq.coodinates.x
-            y = sq.coodinates.y
-            self.__draw_square(x, y, is_piece=True)
+        if piece is not None:
+            for sq in piece.squares:
+                x = sq.coodinates.x
+                y = sq.coodinates.y
+                self.__draw_square(x, y, is_piece=True)
         for i in range(20):
             x = random.randint(0, WIDTH-1)
             y = random.randint(0, HEIGHT-1)

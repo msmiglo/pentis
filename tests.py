@@ -329,7 +329,7 @@ class TestPiece(TestCase):
         expected_squares = [Square(1, 2), Square(1, 1), Square(0, 1),
                             Square(1, 0), Square(2, 0)]
         self.piece_pento.rotate()
-        self.assertSetEqualt(
+        self.assertSetEqual(
             set(self.piece_pento.squares),
             set(expected_squares)
         )
@@ -353,29 +353,56 @@ class TestPiece(TestCase):
         for block in blocks:
             self.assertEqual(type(block), Block)
 
+    def test_move_to_zero(self):
+        # arrange
+        expected_squares = [Square(0, 1), Square(1, 1), Square(1, 0),
+                            Square(2, 1), Square(2, 2)]
+        coords = Coordinates(1, 1)
+        # act
+        self.piece_pento._move_to_zero()
+        # assert
+        self.assertSetEqual(
+            set(self.piece_pento.squares),
+            set(expected_squares)
+        )
+        self.assertEqual(self.piece_pento.center, coords)
+
+    def test_move_to_zero_2(self):
+        # arrange
+        expected_squares = [Square(1, 0), Square(0, 0)]
+        coords = Coordinates(0, 0)
+        # act
+        self.piece_right._move_to_zero()
+        # assert
+        self.assertSetEqual(
+            set(self.piece_right.squares),
+            set(expected_squares)
+        )
+        self.assertEqual(self.piece_right.center, coords)
+
     def test_equal_other_type(self):
         other = Square(4, 4)
         self.assertNotEqual(self.piece_L_shape, other)
 
     def test_equal_other_shape(self):
         other = Piece([
-            Square(2, 1), Square(3, 1), Square(4, 1), Square(4, 2)])
+            Square(2, 1), Square(3, 1), Square(4, 1), Square(4, 0)])
         self.assertNotEqual(self.piece_L_shape, other)
 
     def test_equal_shifted(self):
         other = Piece([
-            Square(2, 1), Square(3, 1), Square(4, 1), Square(4, 2)])
+            Square(1, 4), Square(2, 4), Square(3, 4), Square(3, 5)])
         self.assertEqual(self.piece_L_shape, other)
 
     def test_equal_rotated(self):
         other = Piece([
-            Square(2, 1), Square(3, 1), Square(4, 1), Square(4, 2)])
+            Square(6, 1), Square(6, 2), Square(6, 3), Square(5, 3)])
         self.assertEqual(self.piece_L_shape, other)
 
-    def test_equal_rotated_and_shifted(self):
+    def test_equal_rotated_other_shape(self):
         other = Piece([
-            Square(2, 1), Square(3, 1), Square(4, 1), Square(4, 2)])
-        self.assertEqual(self.piece_L_shape, other)
+            Square(6, 2), Square(6, 3), Square(6, 4), Square(7, 4)])
+        self.assertNotEqual(self.piece_L_shape, other)
 
     def test_equal_same(self):
         other = Piece([
