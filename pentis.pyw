@@ -163,9 +163,14 @@ class Square(Block):
 class Piece:
     def __init__(self, squares):
         self.squares = squares
-        self.center = self._determine_center(squares)
+        self.center = self._determine_center()
 
-    def _determine_center(self, squares):
+    def __eq__(self, other):
+        if type(other) != type(self):
+            return False
+        pass
+
+    def _determine_center(self):
         pass
 
     def move_left(self):
@@ -184,10 +189,12 @@ class Piece:
         pass
 
     def copy(self):
+        return
         squares_copy = [sq.copy() for sq in self.squares]
         return Piece(squares_copy)
 
     def get_blocks(self):
+        return
         blocks = [Block(sq.coordinates.x, sq.coordinates.y) for sq in self.squares]
         return blocks
 

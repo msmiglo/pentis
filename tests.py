@@ -228,6 +228,160 @@ class TestSquare(TestCase):
         copy_square.coordinates.x = 4
         self.assertEqual(square.coordinates.x, 5)
 
+    def test_eq(self):
+        square_1 = Square(5, 3)
+        square_2 = Square(2, 4)
+        square_3 = Square(5, 3)
+        self.assertFalse(square_1 == square_2)
+        self.assertTrue(square_2 == square_2)
+        self.assertNotEqual(square_2, square_3)
+        self.assertEqual(square_1, square_3)
+
+
+class TestPiece(TestCase):
+    def setUp(self):
+        Block.set_playfield_size(8, 8)
+        self.piece_left = Piece([Square(0, 2), Square(1, 2), Square(1, 1)])
+        self.piece_right = Piece([Square(7, 2), Square(6, 2)])
+        self.piece_down = Piece([Square(4, 0), Square(4, 1), Square(3, 0)])
+        self.piece_pento = Piece([
+            Square(0, 1), Square(1, 1), Square(1, 0),
+            Square(2, 1), Square(2, 2)
+        ])
+        self.long_piece = Piece([
+            Square(0, 1), Square(0, 2), Square(0, 3),
+            Square(0, 4), Square(0, 5)
+        ])
+        self.piece_L_shape = Piece([
+            Square(2, 1), Square(3, 1), Square(4, 1), Square(4, 2)])
+
+    def tearDown(self):
+        Block._playfield_size = None
+
+    def test_determine_center(self):
+        # arrange
+        piece_mock = MagicMock()
+        square = Square(4, 4)
+        piece_mock.squares = [square]
+        piece_mock.center = None
+        # act
+        Piece._determine_center(piece_mock)
+        # assert
+        center = piece_mock.center
+        self.assertIsInstance(center, Coordinates)
+        self.assertEqual(center, square.coordinates)
+
+    def test_determine_center_2(self):
+        # arrange
+        piece_mock = MagicMock()
+        piece_mock.center = None
+        piece_mock.squares = self.piece_pento.squares
+        # act
+        Piece._determine_center(piece_mock)
+        # assert
+        self.assertEqual(self.piece_pento.center, Coordinates(1, 1))
+        center = piece_mock.center
+        self.assertIsInstance(center, Coordinates)
+        self.assertEqual(center.x, 1)
+        self.assertEqual(center.y, 1)
+
+    def test_create(self):
+        squares = [Square(5, 2), Square(6, 2)]
+        piece = Piece(squares)
+        self.assertListEqual(piece.squares, squares)
+        self.assertEqual(piece.center, Coordinates(5, 2))
+
+    def test_move_left(self):
+        with self.assertRaises(ValueError):
+            self.piece_left.move_left()
+        self.piece_right.move_left()
+
+    def test_move_right(self):
+        with self.assertRaises(ValueError):
+            self.piece_right.move_right()
+        self.piece_down.move_left()
+
+    def test_move_down(self):
+        with self.assertRaises(ValueError):
+            self.piece_down.move_down()
+        self.piece_right.move_left()
+
+    def test_move_to_error(self):
+        bad_coords = Coordinates(-5, 6)
+        with self.assertRaises(ValueError):
+            self.piece_left.move_to(bad_coords)
+
+    def test_move_to(self):
+        # arrange
+        coords = Coordinates(3, 4)
+        expected_squares = [Square(2, 4), Square(3, 4), Square(3, 3),
+                            Square(4, 4), Square(4, 5)]
+        # act
+        self.piece_pento.move_to(coords)
+        # assert
+        self.assertSetEqual(
+            set(self.piece_pento.squares),
+            set(expected_squares)
+        )
+        self.assertEqual(self.piece_pento.center, coords)
+
+    def test_rotate(self):
+        expected_squares = [Square(1, 2), Square(1, 1), Square(0, 1),
+                            Square(1, 0), Square(2, 0)]
+        self.piece_pento.rotate()
+        self.assertSetEqualt(
+            set(self.piece_pento.squares),
+            set(expected_squares)
+        )
+        self.assertEqual(self.piece_pento.center, Coordinates(1, 1))
+
+    def test_rotate_error(self):
+        with self.assertRaises(ValueError):
+            self.long_piece.rotate()
+
+    def test_copy(self):
+        piece_copy = self.piece_pento.copy()
+        self.assertIsNot(self.piece_pento, piece_copy)
+        for sq_1, sq_2 in zip(self.piece_pento.squares, piece_copy.squares):
+            self.assertIsNot(sq_1, sq_2)
+            self.assertEqual(sq_1, sq_2)
+
+    def test_get_blocks(self):
+        blocks = self.piece_right.get_blocks()
+        expected = [Block(7, 2), Block(6, 2)]
+        self.assertListEqual(blocks, expected)
+        for block in blocks:
+            self.assertEqual(type(block), Block)
+
+    def test_equal_other_type(self):
+        other = Square(4, 4)
+        self.assertNotEqual(self.piece_L_shape, other)
+
+    def test_equal_other_shape(self):
+        other = Piece([
+            Square(2, 1), Square(3, 1), Square(4, 1), Square(4, 2)])
+        self.assertNotEqual(self.piece_L_shape, other)
+
+    def test_equal_shifted(self):
+        other = Piece([
+            Square(2, 1), Square(3, 1), Square(4, 1), Square(4, 2)])
+        self.assertEqual(self.piece_L_shape, other)
+
+    def test_equal_rotated(self):
+        other = Piece([
+            Square(2, 1), Square(3, 1), Square(4, 1), Square(4, 2)])
+        self.assertEqual(self.piece_L_shape, other)
+
+    def test_equal_rotated_and_shifted(self):
+        other = Piece([
+            Square(2, 1), Square(3, 1), Square(4, 1), Square(4, 2)])
+        self.assertEqual(self.piece_L_shape, other)
+
+    def test_equal_same(self):
+        other = Piece([
+            Square(2, 1), Square(3, 1), Square(4, 1), Square(4, 2)])
+        self.assertEqual(self.piece_L_shape, other)
+
 
 class TestDisplayData(TestCase):
     def setUp(self):
