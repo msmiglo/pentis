@@ -47,7 +47,12 @@ class Coordinates:
         self.x = x
         self.y = y
 
+    def __hash__(self):
+        return hash(("Coordinates", self.x, self.y))
+
     def __eq__(self, other):
+        if type(other) != type(self):
+            return False
         return self.x == other.x and self.y == other.y
 
     def __add__(self, other):
@@ -81,9 +86,25 @@ class Block:
         self.coordinates = Coordinates(x, y)
         self.check_out_of_playfield()
 
+    def __hash__(self):
+        return hash(("Block", self.coordinates.x, self.coordinates.y))
+
+    def __eq__(self, other):
+        if type(other) != type(self):
+            return False
+        return self.coordinates == other.coordinates
+
+    def __add__(self, vector):
+        new_coords = self.coordinates + vector
+        x = new_coords.x
+        y = new_coords.y
+        return Block(x, y)
+
     def check_out_of_playfield(self):
         width, height = Square._playfield_size
-        if self.x < 0 or self.x >= width or self.y < 0 or self.y >= height:
+        x = self.coordinates.x
+        y = self.coordinates.y
+        if x < 0 or x >= width or y < 0 or y >= height:
             raise ValueError("Coordinates are outside the playfield.")
 
     def move_by(self, vector):
@@ -91,12 +112,12 @@ class Block:
         self.check_out_of_playfield()
 
     def get_neighbours(self):
-        neigbours = []
+        neighbours = []
         neigbour_coordinates = self.coordinates.get_neighbours()
         for coords in neigbour_coordinates:
             try:
                 block = Block(coords.x, coords.y)
-                neigbours.append(block)
+                neighbours.append(block)
             except ValueError:
                 pass
         return neighbours
@@ -106,6 +127,9 @@ class Block:
 
 
 class Square(Block):
+    def __hash__(self):
+        return hash(("Square", self.coordinates.x, self.coordinates.y))
+
     def rotate(self, center):
         # get coordinates relative to center of rotation
         relative_coords = self.coordinates - center
