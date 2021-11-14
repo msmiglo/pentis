@@ -218,6 +218,16 @@ class TestSquare(TestCase):
         with self.assertRaises(ValueError):
             square.rotate(center)
 
+    def test_copy(self):
+        square = Square(5, 2)
+        copy_square = square.copy()
+        self.assertEqual(square, copy_square)
+        self.assertIsNot(square, copy_square)
+        self.assertIsNot(square.coordinates, copy_square.coordinates)
+        self.assertEqual(type(copy_square), Square)
+        copy_square.coordinates.x = 4
+        self.assertEqual(square.coordinates.x, 5)
+
 
 class TestDisplayData(TestCase):
     def setUp(self):

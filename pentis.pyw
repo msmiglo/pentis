@@ -152,6 +152,10 @@ class Square(Block):
                       for nb in neighbour_blocks]
         return neighbours
 
+    def copy(self):
+        square_copy = Square(self.coordinates.x, self.coordinates.y)
+        return square_copy
+
     def get_color(self):
         return "lightblue"
 
