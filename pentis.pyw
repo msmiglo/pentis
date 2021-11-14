@@ -5,15 +5,17 @@ from time import sleep
 import tkinter
 
 
-WIDTH = 10
-HEIGHT = 20
+WIDTH = 16
+HEIGHT = 24
 SQUARE_SIDE = 25
 MARGIN = 10
 
-PIECE_SIZE = 4
+PIECE_SIZE = 5
 
 
 """
+TODO - update
+
 Playfield is a rectangular lattice consisting of Spaces.
 Spaces form rows horizontally and columns vertically.
 Each Space has Coordinates.
@@ -43,22 +45,19 @@ Application class manages threads.
 # ===========================
 
 class Coordinates:
-    playfield_size = None
-
-    @classmethod
-    def set_playfield_size(cls, height, width):
-        cls.playfield_size = (height, width)
-
     def __init__(self, x, y):
-        if Coordinates.playfield_size is None:
-            raise RuntimeError("Playfield size must be initiated.")
-
         self.x = x
         self.y = y
 
-        self.check_out_of_playfield()
+    def __hash__(self):
+        return hash(("Coordinates", self.x, self.y))
+
+    def __repr__(self):
+        return f"Coords({self.x}, {self.y})"
 
     def __eq__(self, other):
+        if type(other) != type(self):
+            return False
         return self.x == other.x and self.y == other.y
 
     def __add__(self, other):
@@ -71,72 +70,214 @@ class Coordinates:
         y = self.y - other.y
         return Coordinates(x, y)
 
-    def check_out_of_playfield(self):
-        width, height = Coordinates.playfield_size
-        if self.x < 0 or self.x >= width or self.y < 0 or self.y >= height:
-            raise ValueError("Coordinates are outside the playfield.")
-
     def get_neighbours(self):
-        return []
+        versor_1 = Coordinates(1, 0)
+        versor_2 = Coordinates(0, 1)
+        neighbours = [self + versor_1, self - versor_1,
+                      self + versor_2, self - versor_2]
+        return neighbours
 
 
-class Square:
-    """ todo - unify with Block class """
+class Block:
+    _playfield_size = None
+
+    @classmethod
+    def set_playfield_size(cls, height, width):
+        cls._playfield_size = (height, width)
+
     def __init__(self, x, y):
+        if Block._playfield_size is None:
+            raise RuntimeError("Playfield size must be initiated.")
         self.coordinates = Coordinates(x, y)
+        self.check_out_of_playfield()
+
+    def __hash__(self):
+        return hash(("Block", self.coordinates.x, self.coordinates.y))
+
+    def __repr__(self):
+        return f"Block({self.coordinates.x}, {self.coordinates.y})"
+
+    def __eq__(self, other):
+        if type(other) != type(self):
+            return False
+        return self.coordinates == other.coordinates
+
+    def __add__(self, vector):
+        new_coords = self.coordinates + vector
+        x = new_coords.x
+        y = new_coords.y
+        return Block(x, y)
+
+    def check_out_of_playfield(self):
+        width, height = Square._playfield_size
+        x = self.coordinates.x
+        y = self.coordinates.y
+        if x < 0 or x >= width or y < 0 or y >= height:
+            raise ValueError("Coordinates are outside the playfield.")
 
     def move_by(self, vector):
         self.coordinates += vector
-        # check if coordinates ok
+        self.check_out_of_playfield()
+
+    def get_neighbours(self):
+        neighbours = []
+        neigbour_coordinates = self.coordinates.get_neighbours()
+        for coords in neigbour_coordinates:
+            try:
+                block = Block(coords.x, coords.y)
+                neighbours.append(block)
+            except ValueError:
+                pass
+        return neighbours
+
+    def get_color(self):
+        return "red"
+
+
+class Square(Block):
+    def __hash__(self):
+        return hash(("Square", self.coordinates.x, self.coordinates.y))
+
+    def __repr__(self):
+        return f"Square({self.coordinates.x}, {self.coordinates.y})"
 
     def rotate(self, center):
         # get coordinates relative to center of rotation
         relative_coords = self.coordinates - center
         x = relative_coords.x
         y = relative_coords.y
+
         # rotate clockwise by 90 degrees
         x, y = y, -x
         rotated_coords = Coordinates(x, y)
+
         # get absolute coordinates
         self.coordinates = rotated_coords + center
+
         # check if coordinates ok
+        self.check_out_of_playfield()
 
+    def get_neighbours(self):
+        neighbour_blocks = super().get_neighbours()
+        neighbours = [Square(nb.coordinates.x, nb.coordinates.y)
+                      for nb in neighbour_blocks]
+        return neighbours
 
-class Block:
-    def __init__(self, x, y):
-        self.coordinates = Coordinates(x, y)
+    def copy(self):
+        square_copy = Square(self.coordinates.x, self.coordinates.y)
+        return square_copy
 
-    def move_by(self, vector):
-        self.coordinates += vector
-        # check if coordinates ok
+    def get_color(self):
+        return "lightblue"
 
 
 class Piece:
     def __init__(self, squares):
         self.squares = squares
-        self.center = self._determine_center(squares)
+        self.center = None
+        self._determine_center()
 
-    def _determine_center(self, squares):
-        pass
+    def extent(self):
+        xs = [sq.coordinates.x for sq in self.squares]
+        ys = [sq.coordinates.y for sq in self.squares]
+        min_x = min(xs)
+        max_x = max(xs)
+        min_y = min(ys)
+        max_y = max(ys)
+        return {"x": (min_x, max_x), "y": (min_y, max_y),
+                "min": (min_x, min_y), "max": (max_x, max_y)}
+
+    def _move_to_zero(self):
+        min_x, min_y = self.extent()["min"]
+        translation_vector = Coordinates(-min_x, -min_y)
+        self._move_by_vector(translation_vector)
+
+    def __str__(self):
+        copy = self.copy()
+        copy._move_to_zero()
+        max_x, max_y = copy.extent()["max"]
+        grid = [["." for j in range(max_x + 3)] for i in range(max_y + 3)]
+        for sq in copy.squares:
+            grid[sq.coordinates.y + 1][sq.coordinates.x + 1] = "X"
+        grid[copy.center.y + 1][copy.center.x + 1] = "O"
+        grid = [" ".join(line) for line in grid]
+        grid = "\n".join(grid[::-1])
+        return grid
+
+    def __eq__(self, other):
+        # check type
+        if type(other) != type(self):
+            return False
+        # check if identical
+        if set(self.squares) == set(other.squares):
+            return True
+
+        # try rotating and shifting before comparison:
+        # 1) make copies
+        original = self.copy()
+        comparison = other.copy()
+        # 2) move comparison piece to center of playfield
+        x, y = Block._playfield_size
+        center_of_playfield = Coordinates(x // 2, y // 2)
+        comparison.move_to(center_of_playfield)
+        # 3) make copies for all rotations
+        rotation_copies = []
+        for i in range(4):
+            rotation_copies.append(comparison.copy())
+            comparison.rotate()
+        # 4) move all copies to same position
+        original._move_to_zero()
+        for piece_i in rotation_copies:
+            piece_i._move_to_zero()
+        # 5) compare to all four
+        for piece_i in rotation_copies:
+            if set(piece_i.squares) == set(original.squares):
+                return True
+        # 6) no comparison passed
+        return False
+
+    def _determine_center(self):
+        n_squares = len(self.squares)
+        weighted_position = Coordinates(0, 0)
+        for sq in self.squares:
+            weighted_position += sq.coordinates
+        x_center = weighted_position.x / n_squares
+        y_center = weighted_position.y / n_squares
+        self.center = Coordinates(int(x_center + 0.5), int(y_center + 0.5))
+
+    def _move_by_vector(self, vector):
+        for sq in self.squares:
+            sq.move_by(vector)
+            sq.check_out_of_playfield()
+        self.center += vector
 
     def move_left(self):
-        pass
+        vector = Coordinates(-1, 0)
+        self._move_by_vector(vector)
 
     def move_right(self):
-        pass
+        vector = Coordinates(1, 0)
+        self._move_by_vector(vector)
 
     def move_down(self):
-        pass
+        vector = Coordinates(0, -1)
+        self._move_by_vector(vector)
 
     def move_to(self, coords):
-        pass
+        vector = coords - self.center
+        self._move_by_vector(vector)
 
-    def rotate(selt):
-        pass
+    def rotate(self):
+        for sq in self.squares:
+            sq.rotate(self.center)
+            sq.check_out_of_playfield()
 
-    def copy(self):
+    def copy(self, with_center=False):
         squares_copy = [sq.copy() for sq in self.squares]
-        return Piece(squares_copy)
+        piece_copy = Piece(squares_copy)
+        if with_center:
+            piece_copy.center = Coordinates(self.center.x, self.center.y)
+        return piece_copy
 
     def get_blocks(self):
         blocks = [Block(sq.coordinates.x, sq.coordinates.y) for sq in self.squares]
@@ -146,16 +287,80 @@ class Piece:
 class PieceGenerator:
     piece_library = None
 
+    @staticmethod
+    def extend_piece(piece):
+        assert type(piece) == Piece, f"got piece of type: `{type(piece)}`"
+
+        # get piece neighbouring squares
+        neighbours = []
+        for sq in piece.squares:
+            neighbours += sq.get_neighbours()
+        neighbours = set(neighbours).difference(set(piece.squares))
+
+        # make new pieces by adding neighbouring square - one for each
+        new_pieces = []
+        for nb in neighbours:
+            new_squares = piece.copy().squares
+            new_squares.append(nb)
+            new_piece = Piece(new_squares)
+            if new_piece not in new_pieces:
+                new_pieces.append(new_piece)
+
+        return new_pieces
+
+    @staticmethod
+    def extend_library(library):
+        if not library:
+            x, y = Block._playfield_size
+            square = Square(x // 2, y // 2)
+            piece = Piece([square])
+            return [piece]
+
+        new_library = []
+        for old_piece in library:
+            new_pieces = PieceGenerator.extend_piece(old_piece)
+            for new_piece in new_pieces:
+                if new_piece not in new_library:
+                    new_library.append(new_piece)
+
+        return new_library
+
     @classmethod
-    def create_piece_library(cls):
-        pass
+    def create_piece_library(cls, piece_size):
+        # make library of unique pieces
+        library = None
+        for i in range(piece_size):
+            library = cls.extend_library(library)
+
+        # rotate pieces that are standing vertically
+        for pc in library:
+            extent = pc.extent()
+            x_span = extent["x"][1] - extent["x"][0]
+            y_span = extent["y"][1] - extent["y"][0]
+            if y_span > x_span:
+                pc.rotate()
+
+        # shift pieces to starting position
+        y_playfield_limit = Block._playfield_size[1] - 1
+        x_playfield_middle = Block._playfield_size[0] // 2
+        for pc in library:
+            y_max = pc.extent()["y"][1]
+            y_center = pc.center.y
+            # upper edge (y_max) should be moved to the playfield limit
+            new_y_center = y_center + (y_playfield_limit - y_max)
+            new_coords = Coordinates(x_playfield_middle, new_y_center)
+            pc.move_to(new_coords)
+
+        # assign pieces libary to class property
+        cls.piece_library = library
 
     def __init__(self):
         if PieceGenerator.piece_library is None:
-            PieceGenerator.create_piece_library()
+            raise RuntimeError("Piece library must be created first.")
 
     def make_piece(self):
-        pass
+        piece = random.choice(self.piece_library).copy()
+        return piece
 
 
 class Playfield:
@@ -169,42 +374,118 @@ class Playfield:
         self.reset()
 
     def reset(self):
-        self._piece = Piece([])
         self._blocks = []
         self._piece_generator = PieceGenerator()
+        self._piece = self._piece_generator.make_piece()
 
     def rotate_piece(self):
-        pass
+        piece_copy = self._piece.copy(with_center=True)
+        # if this operation will cause error - ignore it
+        try:
+            piece_copy.rotate()
+            self._check_colission(piece_copy)
+        except ValueError:
+            return
+        # everything ok, perform action on actual piece
+        self._piece.rotate()
 
     def move_piece_left(self):
-        pass
+        piece_copy = self._piece.copy()
+        # if this operation will cause error - ignore it
+        try:
+            piece_copy.move_left()
+            self._check_colission(piece_copy)
+        except ValueError:
+            return
+        # everything ok, perform action on actual piece
+        self._piece.move_left()
 
     def move_piece_right(self):
-        pass
+        piece_copy = self._piece.copy()
+        # if this operation will cause error - ignore it
+        try:
+            piece_copy.move_right()
+            self._check_colission(piece_copy)
+        except ValueError:
+            return
+        # everything ok, perform action on actual piece
+        self._piece.move_right()
 
     def move_piece_down(self):
-        pass
+        piece_copy = self._piece.copy()
+        # if moving down will cause error or colision - turn into blocks
+        try:
+            piece_copy.move_down()
+            self._check_colission(piece_copy)
+        except ValueError:
+            self._turn_piece_into_blocks()
+            self._burn_lines()
+            self._make_new_piece()
+            return
+        # everything ok, perform action on actual piece
+        self._piece.move_down()
 
     def _update(self):
+        """ TODO - FINISH """
         pass
 
     def _check_game_over(self):
-        pass
+        try:
+            self._check_colission(self._piece)
+            return False
+        except ValueError:
+            return True
 
-    def _check_colission(self):
-        pass
-
-    def _check_hit_ground(self):
-        pass
+    def _check_colission(self, piece):
+        blocks_coords = [bl.coordinates for bl in self._blocks]
+        for sq in piece.squares:
+            if sq.coordinates in blocks_coords:
+                raise ValueError("Piece is coliding with existing blocks!")
 
     def _turn_piece_into_blocks(self):
-        pass
+        blocks = self._piece.get_blocks()
+        self._piece = None
+        self._blocks += blocks
 
     def _burn_lines(self):
-        pass
+        """ TODO - FINISH """
+        max_x, max_y = Block._playfield_size
+        # find lines to burn
+        rows = {i: 0 for i in range(max_y)}
+        for bl in self._blocks:
+            rows[bl.coordinates.y] += 1
+        rows_to_burn = [i for i in rows if rows[i] == max_x]
+        if len(rows_to_burn) == 0:
+            return
+
+        # display a flash effect - TODO (could be difficult)
+
+        # calculate displacement for blocks
+        rows_displacement = {}
+        current_displacement = 0
+        for row_i in range(max_y):
+            if row_i in rows_to_burn:
+                rows_displacement[row_i] = None
+                current_displacement -= 1
+            else:
+                vector = Coordinates(0, current_displacement)
+                rows_displacement[row_i] = vector
+
+        # burn lines and move down the other blocks
+        new_blocks = []
+        for bl in self._blocks:
+            y = bl.coordinates.y
+            displacement = rows_displacement[y]
+            if displacement is None:
+                continue
+            bl.move_by(displacement)
+            new_blocks.append(bl)
+        self._blocks = new_blocks
 
     def _make_new_piece(self):
-        pass
+        if self._piece is not None:
+            raise RuntimeError("There is already a piece in the playfield.")
+        self._piece = self._piece_generator.make_piece()
 
     def get_display_data(self):
         return DisplayData(self.size_x, self.size_y, self._piece, self._blocks)
@@ -213,22 +494,20 @@ class Playfield:
 class Game:
     def __init__(self, size_x, size_y):
         self._playfield = Playfield(size_x, size_y)
-        self._time = 0.0
-        self._time_step = 1.0
-        self._alive = False
+        self.time = None
+        self.time_step = None
+        self.alive = False
+        self.pause = False
         self._refresh_view_callback = None
 
         self._reset()
 
     def _reset(self):
-        self.alive = True
+        self._playfield.reset()
         self.time = 0.0
-        self.piece = None
-        self.position_x = 5
-        self.position_y = 20
-        self.rotation = 0
-        self.time_step = 1.0
-        self.blocks = []
+        self.time_step = 0.3
+        self.alive = True
+        self.pause = False
 
     def _is_alive(self):
         return bool(self.alive)
@@ -236,111 +515,71 @@ class Game:
     def _set_dead(self):
         self.alive = False
 
+    def start_loop(self):
+        while self._is_alive():
+            self._step()
+        print("ok")
+
+    def _step(self):
+        sleep(self.time_step)
+        if self.pause:
+            return
+        self.time += self.time_step
+        self._playfield.move_piece_down()
+        self._update()
+        print(".", end="", flush=True)
+
     def _update(self):
+        """ TODO - FINISH """
+        self._refresh_view_callback()
+        if self._playfield._check_game_over():
+            self._reset()
         # place piece in the playfield if there is none
         # check if game over (piece overlaps blocks)
         # turn piece into blocks if touches ground
         # burn full lines
         # update time_step
         # check max time
-        if self.time > 5.5:
-            self.set_dead()
-        pass
-
-    def _step(self):
-        print(".", end="", flush=True)
-        self.position_y -= 1
-        self._update()
-
-    def register_callback(callback):
-        pass
-
-    def start_loop(self):
-        while self._is_alive():
-            sleep(0.5)
-            print(".", end="")
-        print("ok")
-        return
-
-        while self._is_alive():
-            sleep(self._time_step)
-            self._time += self._time_step
-            self._step()
-            self._refresh_view_callback()
-            #context.game.draw_view(context.window)
-        print("side thread game over, trying to close window..")
-        #context.window.close()
-        self._refresh_view_callback(end=True)
-        print("side thread finished")
 
     def stop(self):
         self._set_dead()
 
     def handle_event(self, event):
-        """
-        make event in game
-        update game
-        take a display data
-        update display
+        # hangle controls
+        if event.keysym == Key.PAUSE:
+            self.pause = not self.pause
+            return
+        elif event.keysym in ["r", "R"]:
+            self._reset()
+            self._update()
 
-        dir of event:
-            'char', 'delta', 'height', 'keycode',
-            'keysym', 'keysym_num', 'num', 'serial',
-            'state', 'time', 'type', 'widget', 'width',
-            'x', 'x_root', 'y', 'y_root'
-
-        dict of event:
-        {
-            'serial': 15,
-            'num': '??',
-            'height': '??',
-            'keycode': 40,
-            'state': 262152,
-            'time': 1567058625,
-            'width': '??',
-            'x': 171,
-            'y': -13,
-            'char': '',
-            'keysym': 'Down',
-            'keysym_num': 65364,
-            'type': <EventType.KeyPress: '2'>,
-            'widget': <tkinter.Tk object .>,
-            'x_root': 205,
-            'y_root': 44,
-            'delta': 0
-        }
-        """
-        '''print(event)
-        print()
-        print(dir(event))
-        print()
-        print(event.__dict__)
-        print("=============")'''
-        return
-        if event.type == "key_stroke":
-            key = event.key
-            if key == Key.DOWN:
-                game.position_y -= 1
-            elif key == Key.UP:
-                game.rotation += 1
-            elif key == Key.LEFT:
-                game.position_x -= 1
-            elif key == Key.RIGHT:
-                game.position_x += 1
-            elif key == Key.ESCAPE:
-                game.set_dead()
-            else:
-                pass
-        elif event.type == "window_closed":
-            self._set_dead()
-        else:
+        if self.pause:
+            # IF SWITCHED OFF - YOU CAN PLAY ON PAUSE!
+            #return
             pass
-        game.update()
+
+        # handle arrow keys
+        if event.keysym == Key.UP:
+            self._playfield.rotate_piece()
+        elif event.keysym == Key.LEFT:
+            self._playfield.move_piece_left()
+        elif event.keysym == Key.RIGHT:
+            self._playfield.move_piece_right()
+        elif event.keysym == Key.DOWN:
+            self._playfield.move_piece_down()
+        else:
+            return
+
+        # refresh view
+        self._update()
 
     def get_display_data(self):
         data = self._playfield.get_display_data()
         data.time = int(self.time)
         return data
+
+    def register_callback(self, callback):
+        self._refresh_view_callback = callback
 
 
 # ===========================
@@ -348,6 +587,7 @@ class Game:
 # ===========================
 
 class Key:
+    PAUSE = "space"
     DOWN = "Down"
     UP = "Up"
     LEFT = "Left"
@@ -399,7 +639,7 @@ class Window:
             color = "red"
         offset = 2 + MARGIN
         x_position = x * SQUARE_SIDE
-        y_position = y * SQUARE_SIDE
+        y_position = (HEIGHT - y - 1) * SQUARE_SIDE
 
         self.canvas.create_rectangle(
             x_position + 2 + offset,
@@ -429,24 +669,27 @@ class Window:
 
     def __draw_blocks(self, blocks):
         for block in blocks:
-            x = block.coodinates.x
-            y = block.coodinates.y
+            x = block.coordinates.x
+            y = block.coordinates.y
             self.__draw_square(x, y, is_piece=False)
 
     def __draw_piece(self, piece):
-        for sq in piece.squares:
-            x = sq.coodinates.x
-            y = sq.coodinates.y
-            self.__draw_square(x, y, is_piece=True)
-        for i in range(20):
-            x = random.randint(0, WIDTH-1)
-            y = random.randint(0, HEIGHT-1)
-            self.__draw_square(x, y)
+        if piece is not None:
+            for sq in piece.squares:
+                x = sq.coordinates.x
+                y = sq.coordinates.y
+                self.__draw_square(x, y, is_piece=True)
 
     def show(self):
         self.window.update()
 
     def draw(self, display_data):
+        # Unfortunately tkinter is thread-agnostic, and drawing anything
+        # from outside the main thread will cause problems with
+        # updating the window. Therefore the separate thread used
+        # to tick-tock the game steps causes massive lags with
+        # drawing objects on canvas. Probable solution is to make some
+        # clock generating events and bind some handler to them.
         self.clear_display()
         self.__draw_playfield(display_data.playfield_size)
         self.__draw_blocks(display_data.blocks)
@@ -476,10 +719,12 @@ class DisplayData:
 
 class Application:
     def __init__(self):
+        Block.set_playfield_size(WIDTH, HEIGHT)
+        PieceGenerator.create_piece_library(PIECE_SIZE)
         self._game = Game(WIDTH, HEIGHT)
+        self._game.register_callback(self.refresh_view)
         self._window = Window(WIDTH, HEIGHT)
         self._window.register_event_handler(self.handle_event)
-        PieceGenerator.create_piece_library()
 
     def _start_game(self):
         self._game.start_loop()
@@ -509,7 +754,6 @@ class Application:
             self.stop()
         else:
             self._game.handle_event(event)
-            self.refresh_view()
 
     def refresh_view(self):
         display_data = self._game.get_display_data()
