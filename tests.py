@@ -2,8 +2,8 @@
 from unittest import main, skip, TestCase
 from unittest.mock import MagicMock
 
-from pentis import Block, Coordinates, DisplayData
-from pentis import Piece, Playfield, PieceGenerator, Square
+from pentris import Block, Coordinates, DisplayData
+from pentris import Piece, Playfield, PieceGenerator, Square
 
 
 class TestCoordinates(TestCase):
