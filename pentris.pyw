@@ -5,9 +5,9 @@ from time import sleep
 import tkinter
 
 
-WIDTH = 16
-HEIGHT = 24
-SQUARE_SIDE = 25
+WIDTH = 20
+HEIGHT = 32
+SQUARE_SIDE = 22
 MARGIN = 10
 
 PIECE_SIZE = 5
@@ -448,13 +448,13 @@ class Playfield:
         self._blocks += blocks
 
     def _burn_lines(self):
-        """ TODO - FINISH """
         max_x, max_y = Block._playfield_size
         # find lines to burn
         rows = {i: 0 for i in range(max_y)}
         for bl in self._blocks:
             rows[bl.coordinates.y] += 1
-        rows_to_burn = [i for i in rows if rows[i] == max_x]
+        burn_discount = max(0, PIECE_SIZE - 4)
+        rows_to_burn = [i for i in rows if rows[i] >= max_x - burn_discount]
         if len(rows_to_burn) == 0:
             return
 
@@ -605,7 +605,7 @@ class Window:
         height_pixels = height * SQUARE_SIDE
         self.window = tkinter.Tk()
         self.window.resizable(False, False)
-        self.window.title("Pentis by MŚ")
+        self.window.title("Pentris by MŚ")
 
         # add canvas
         self.canvas = tkinter.Canvas(
